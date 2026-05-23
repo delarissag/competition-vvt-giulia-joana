@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { mock } from 'vitest-mock-extended';
 import { LibraryService } from '../../src/lib/library';
-import type { Book, Loan, Member } from '../../src/lib/domain';
+import type { Book, BookStatus, Loan, Member } from '../../src/lib/domain';
 import type { LibraryRepository } from '../../src/lib/ports';
 
 const today = new Date('2025-06-10T10:00:00Z');
@@ -38,15 +38,18 @@ describe('borrowBook', () => {
     expect(result.loan?.bookId).toBe('b1');
   });
 
-  it('bloqueia empréstimo quando livro está borrowed', () => {
+  it.each([
+    { status: 'borrowed' as BookStatus, descricao: 'emprestado' },
+    { status: 'maintenance' as BookStatus, descricao: 'em manutenção' },
+  ])('bloqueia empréstimo quando livro está $descricao', ({ status }) => {
     // Arrange
     const repo = mock<LibraryRepository>();
-    repo.findMemberById.mockReturnValue(makeMember({ id: 'm2', name: 'Bob' }));
-    repo.findBookById.mockReturnValue(makeBook({ status: 'borrowed' }));
+    repo.findMemberById.mockReturnValue(makeMember());
+    repo.findBookById.mockReturnValue(makeBook({ status }));
     const service = new LibraryService(repo);
 
     // Act
-    const result = service.borrowBook('m2', 'b1', today);
+    const result = service.borrowBook('m1', 'b1', today);
 
     // Assert
     expect(result.success).toBe(false);
@@ -104,21 +107,6 @@ describe('borrowBook', () => {
     // Assert
     expect(result.success).toBe(false);
     expect(result.reason).toBe('BOOK_NOT_FOUND');
-  });
-
-  it('bloqueia empréstimo quando livro está em manutenção', () => {
-    // Arrange
-    const repo = mock<LibraryRepository>();
-    repo.findMemberById.mockReturnValue(makeMember());
-    repo.findBookById.mockReturnValue(makeBook({ status: 'maintenance' }));
-    const service = new LibraryService(repo);
-
-    // Act
-    const result = service.borrowBook('m1', 'b1', today);
-
-    // Assert
-    expect(result.success).toBe(false);
-    expect(result.reason).toBe('BOOK_NOT_AVAILABLE');
   });
 
   it('bloqueia empréstimo quando student atinge o limite de 3 livros', () => {
@@ -208,13 +196,18 @@ describe('borrowBook', () => {
 });
 
 describe('returnBook', () => {
-  it('calcula multa de 2 dias atrasado para student', () => {
+  it.each([
+    { daysLate: 2, dueAt: '2025-06-08T10:00:00Z', returnedAt: '2025-06-10T10:00:00Z', feeInCents: 400 },
+    { daysLate: 3, dueAt: '2025-06-07T10:00:00Z', returnedAt: '2025-06-10T10:00:00Z', feeInCents: 600 },
+    { daysLate: 4, dueAt: '2025-06-06T10:00:00Z', returnedAt: '2025-06-10T10:00:00Z', feeInCents: 1100 },
+    { daysLate: 5, dueAt: '2025-06-08T10:00:00Z', returnedAt: '2025-06-13T10:00:00Z', feeInCents: 1600 },
+  ])('multa com $daysLate dias de atraso é de $feeInCents centavos', ({ daysLate, dueAt, returnedAt, feeInCents }) => {
     // Arrange
     const loan: Loan = {
       memberId: 'm1',
       bookId: 'b1',
       borrowedAt: new Date('2025-06-01T10:00:00Z'),
-      dueAt: new Date('2025-06-08T10:00:00Z'),
+      dueAt: new Date(dueAt),
       returnedAt: null,
     };
     const repo = mock<LibraryRepository>();
@@ -223,42 +216,11 @@ describe('returnBook', () => {
     const service = new LibraryService(repo);
 
     // Act
-    const result = service.returnBook(
-      'm1',
-      'b1',
-      new Date('2025-06-10T10:00:00Z'),
-    );
+    const result = service.returnBook('m1', 'b1', new Date(returnedAt));
 
     // Assert
-    expect(result.success).toBe(true);
-    expect(result.daysLate).toBe(2);
-    expect(result.feeInCents).toBe(400);
-  });
-
-  it('calcula multa de 5 dias atrasado', () => {
-    // Arrange
-    const loan: Loan = {
-      memberId: 'm1',
-      bookId: 'b1',
-      borrowedAt: new Date('2025-06-01T10:00:00Z'),
-      dueAt: new Date('2025-06-08T10:00:00Z'),
-      returnedAt: null,
-    };
-    const repo = mock<LibraryRepository>();
-    repo.findActiveLoanByBookId.mockReturnValue(loan);
-    repo.findBookById.mockReturnValue(makeBook());
-    const service = new LibraryService(repo);
-
-    // Act
-    const result = service.returnBook(
-      'm1',
-      'b1',
-      new Date('2025-06-13T10:00:00Z'),
-    );
-
-    // Assert
-    expect(result.daysLate).toBe(5);
-    expect(result.feeInCents).toBe(1600);
+    expect(result.daysLate).toBe(daysLate);
+    expect(result.feeInCents).toBe(feeInCents);
   });
 
   it('devolução falha quando livro não está emprestado', () => {
@@ -339,50 +301,6 @@ describe('returnBook', () => {
     // Assert
     expect(repo.saveLoan).toHaveBeenCalledWith(expect.objectContaining({ returnedAt: today }));
     expect(repo.saveBook).toHaveBeenCalledWith(expect.objectContaining({ status: 'available' }));
-  });
-
-  it('multa com 3 dias de atraso é de R$ 6,00', () => {
-    // Arrange
-    const loan: Loan = {
-      memberId: 'm1',
-      bookId: 'b1',
-      borrowedAt: new Date('2025-06-01T10:00:00Z'),
-      dueAt: new Date('2025-06-07T10:00:00Z'),
-      returnedAt: null,
-    };
-    const repo = mock<LibraryRepository>();
-    repo.findActiveLoanByBookId.mockReturnValue(loan);
-    repo.findBookById.mockReturnValue(makeBook());
-    const service = new LibraryService(repo);
-
-    // Act
-    const result = service.returnBook('m1', 'b1', today);
-
-    // Assert
-    expect(result.daysLate).toBe(3);
-    expect(result.feeInCents).toBe(600);
-  });
-
-  it('multa com 4 dias de atraso é de R$ 11,00', () => {
-    // Arrange
-    const loan: Loan = {
-      memberId: 'm1',
-      bookId: 'b1',
-      borrowedAt: new Date('2025-06-01T10:00:00Z'),
-      dueAt: new Date('2025-06-06T10:00:00Z'),
-      returnedAt: null,
-    };
-    const repo = mock<LibraryRepository>();
-    repo.findActiveLoanByBookId.mockReturnValue(loan);
-    repo.findBookById.mockReturnValue(makeBook());
-    const service = new LibraryService(repo);
-
-    // Act
-    const result = service.returnBook('m1', 'b1', today);
-
-    // Assert
-    expect(result.daysLate).toBe(4);
-    expect(result.feeInCents).toBe(1100);
   });
 });
 
