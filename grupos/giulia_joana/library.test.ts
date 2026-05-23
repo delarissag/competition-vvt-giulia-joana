@@ -273,4 +273,108 @@ describe('LibraryService', () => {
     // Assert
     expect(result.loan?.dueAt).toEqual(new Date('2025-06-24T10:00:00Z'));
   });
+
+  it('devolução falha quando livro não está emprestado', () => {
+    // Arrange
+    const repo = mock<LibraryRepository>();
+    repo.findActiveLoanByBookId.mockReturnValue(null);
+    const service = new LibraryService(repo);
+
+    // Act
+    const result = service.returnBook('m1', 'b1', today);
+
+    // Assert
+    expect(result.success).toBe(false);
+    expect(result.reason).toBe('LOAN_NOT_FOUND');
+  });
+
+  it('devolução falha quando livro está emprestado para outro membro', () => {
+    // Arrange
+    const loan: Loan = {
+      memberId: 'outro',
+      bookId: 'b1',
+      borrowedAt: new Date('2025-06-01T10:00:00Z'),
+      dueAt: new Date('2025-06-08T10:00:00Z'),
+      returnedAt: null,
+    };
+    const repo = mock<LibraryRepository>();
+    repo.findActiveLoanByBookId.mockReturnValue(loan);
+    const service = new LibraryService(repo);
+
+    // Act
+    const result = service.returnBook('m1', 'b1', today);
+
+    // Assert
+    expect(result.success).toBe(false);
+    expect(result.reason).toBe('NOT_BORROWER');
+  });
+
+  it('devolução no prazo não gera multa', () => {
+    // Arrange
+    const loan: Loan = {
+      memberId: 'm1',
+      bookId: 'b1',
+      borrowedAt: new Date('2025-06-01T10:00:00Z'),
+      dueAt: today,
+      returnedAt: null,
+    };
+    const repo = mock<LibraryRepository>();
+    repo.findActiveLoanByBookId.mockReturnValue(loan);
+    repo.findBookById.mockReturnValue(makeBook());
+    const service = new LibraryService(repo);
+
+    // Act
+    const result = service.returnBook('m1', 'b1', today);
+
+    // Assert
+    expect(result.success).toBe(true);
+    expect(result.daysLate).toBe(0);
+    expect(result.feeInCents).toBe(0);
+    expect(repo.saveLoan).toHaveBeenCalledWith(expect.objectContaining({ returnedAt: today }));
+    expect(repo.saveBook).toHaveBeenCalledWith(expect.objectContaining({ status: 'available' }));
+  });
+
+  it('multa com 3 dias de atraso é de R$ 6,00', () => {
+    // Arrange
+    const loan: Loan = {
+      memberId: 'm1',
+      bookId: 'b1',
+      borrowedAt: new Date('2025-06-01T10:00:00Z'),
+      dueAt: new Date('2025-06-07T10:00:00Z'),
+      returnedAt: null,
+    };
+    const repo = mock<LibraryRepository>();
+    repo.findActiveLoanByBookId.mockReturnValue(loan);
+    repo.findBookById.mockReturnValue(makeBook());
+    const service = new LibraryService(repo);
+
+    // Act
+    const result = service.returnBook('m1', 'b1', today);
+
+    // Assert
+    expect(result.daysLate).toBe(3);
+    expect(result.feeInCents).toBe(600);
+  });
+
+  it('multa com 4 dias de atraso é de R$ 11,00', () => {
+    // Arrange
+    const loan: Loan = {
+      memberId: 'm1',
+      bookId: 'b1',
+      borrowedAt: new Date('2025-06-01T10:00:00Z'),
+      dueAt: new Date('2025-06-06T10:00:00Z'),
+      returnedAt: null,
+    };
+    const repo = mock<LibraryRepository>();
+    repo.findActiveLoanByBookId.mockReturnValue(loan);
+    repo.findBookById.mockReturnValue(makeBook());
+    const service = new LibraryService(repo);
+
+    // Act
+    const result = service.returnBook('m1', 'b1', today);
+
+    // Assert
+    expect(result.daysLate).toBe(4);
+    expect(result.feeInCents).toBe(1100);
+  });
 });
