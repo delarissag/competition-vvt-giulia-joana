@@ -126,7 +126,7 @@ describe('borrowBook', () => {
   it('bloqueia empréstimo quando membro tem devolução em atraso', () => {
     // Arrange
     const activeLoans: Loan[] = [
-      { memberId: 'm1', bookId: 'b2', borrowedAt: today, dueAt: new Date('2025-06-01T10:00:00Z'), returnedAt: null },
+      { memberId: 'm1', bookId: 'b2', borrowedAt: new Date('2025-05-25T10:00:00Z'), dueAt: new Date('2025-06-01T10:00:00Z'), returnedAt: null },
     ];
     repo.findMemberById.mockReturnValue(makeMember());
     repo.findBookById.mockReturnValue(makeBook());
