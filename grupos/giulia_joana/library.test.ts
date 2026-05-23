@@ -284,7 +284,7 @@ describe('returnBook', () => {
 });
 
 describe('getMemberStatus', () => {
-  it('getMemberStatus para membro inexistente', () => {
+  it('consulta de status lança erro quando membro não existe', () => {
     // Arrange
     repo.findMemberById.mockReturnValue(null);
 
