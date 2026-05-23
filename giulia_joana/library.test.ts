@@ -77,14 +77,17 @@ describe('LibraryService', () => {
       { memberId: 'p1', bookId: 'b1', borrowedAt: today, dueAt: new Date('2025-06-24T10:00:00Z'), returnedAt: null },
       { memberId: 'p1', bookId: 'b2', borrowedAt: today, dueAt: new Date('2025-06-24T10:00:00Z'), returnedAt: null },
       { memberId: 'p1', bookId: 'b3', borrowedAt: today, dueAt: new Date('2025-06-24T10:00:00Z'), returnedAt: null },
+      { memberId: 'p1', bookId: 'b4', borrowedAt: today, dueAt: new Date('2025-06-24T10:00:00Z'), returnedAt: null },
+      { memberId: 'p1', bookId: 'b5', borrowedAt: today, dueAt: new Date('2025-06-24T10:00:00Z'), returnedAt: null },
+
     ];
     const repo = mock<LibraryRepository>();
     repo.findMemberById.mockReturnValue(prof);
-    repo.findBookById.mockReturnValue(makeBook({ id: 'b4' }));
+    repo.findBookById.mockReturnValue(makeBook({ id: 'b6' }));
     repo.findActiveLoansByMemberId.mockReturnValue(activeLoans);
     const service = new LibraryService(repo);
 
-    const result = service.borrowBook('p1', 'b4', today);
+    const result = service.borrowBook('p1', 'b6', today);
 
     expect(result.success).toBe(false);
     expect(result.reason).toBe('LIMIT_REACHED');
@@ -109,7 +112,7 @@ describe('LibraryService', () => {
       new Date('2025-06-13T10:00:00Z'),
     );
 
-    expect(result.feeInCents).toBe(1000);
+    expect(result.feeInCents).toBe(1600);
   });
 
   it('getMemberStatus para membro inexistente', () => {
@@ -117,8 +120,8 @@ describe('LibraryService', () => {
     repo.findMemberById.mockReturnValue(null);
     const service = new LibraryService(repo);
 
-    const status = service.getMemberStatus('m999', today);
+    const status = () => service.getMemberStatus('m999', today);
 
-    expect(status.activeLoans).toBe(0);
+    expect(status).toThrow('MEMBER_NOT_FOUND');
   });
 });
