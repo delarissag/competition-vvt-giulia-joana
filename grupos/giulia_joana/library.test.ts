@@ -377,4 +377,24 @@ describe('LibraryService', () => {
     expect(result.daysLate).toBe(4);
     expect(result.feeInCents).toBe(1100);
   });
+
+  it('status do membro reflete corretamente loans ativos e em atraso', () => {
+    // Arrange
+    const repo = mock<LibraryRepository>();
+    repo.findMemberById.mockReturnValue(makeMember());
+    repo.findActiveLoansByMemberId.mockReturnValue([
+      { memberId: 'm1', bookId: 'b2', borrowedAt: new Date('2025-06-01T10:00:00Z'), dueAt: new Date('2025-06-01T10:00:00Z'), returnedAt: null },
+      { memberId: 'm1', bookId: 'b3', borrowedAt: new Date('2025-06-01T10:00:00Z'), dueAt: new Date('2025-06-20T10:00:00Z'), returnedAt: null },
+    ]);
+    const service = new LibraryService(repo);
+
+    // Act
+    const status = service.getMemberStatus('m1', today);
+
+    // Assert
+    expect(status.activeLoans).toBe(2);
+    expect(status.overdueLoans).toBe(1);
+    expect(status.remainingSlots).toBe(1);
+    expect(status.canBorrow).toBe(false);
+  });
 });
