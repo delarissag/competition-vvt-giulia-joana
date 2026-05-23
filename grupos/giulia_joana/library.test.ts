@@ -61,27 +61,7 @@ describe('borrowBook', () => {
     expect(result.reason).toBe('BOOK_NOT_AVAILABLE');
   });
 
-  it('professor retorna LIMIT_REACHED ao tentar o 6º empréstimo', () => {
-    // Arrange
-    const prof = makeMember({ id: 'p1', type: 'professor' });
-    const activeLoans: Loan[] = [
-      { memberId: 'p1', bookId: 'b1', borrowedAt: today, dueAt: new Date('2025-06-24T10:00:00Z'), returnedAt: null },
-      { memberId: 'p1', bookId: 'b2', borrowedAt: today, dueAt: new Date('2025-06-24T10:00:00Z'), returnedAt: null },
-      { memberId: 'p1', bookId: 'b3', borrowedAt: today, dueAt: new Date('2025-06-24T10:00:00Z'), returnedAt: null },
-      { memberId: 'p1', bookId: 'b4', borrowedAt: today, dueAt: new Date('2025-06-24T10:00:00Z'), returnedAt: null },
-      { memberId: 'p1', bookId: 'b5', borrowedAt: today, dueAt: new Date('2025-06-24T10:00:00Z'), returnedAt: null },
-    ];
-    repo.findMemberById.mockReturnValue(prof);
-    repo.findBookById.mockReturnValue(makeBook({ id: 'b6' }));
-    repo.findActiveLoansByMemberId.mockReturnValue(activeLoans);
 
-    // Act
-    const result = service.borrowBook('p1', 'b6', today);
-
-    // Assert
-    expect(result.success).toBe(false);
-    expect(result.reason).toBe('LIMIT_REACHED');
-  });
 
   it('empréstimo falha quando membro não existe', () => {
     // Arrange
@@ -108,16 +88,32 @@ describe('borrowBook', () => {
     expect(result.reason).toBe('BOOK_NOT_FOUND');
   });
 
-  it('bloqueia empréstimo quando student atinge o limite de 3 livros', () => {
+  it.each([
+    {
+      tipo: 'student',
+      member: { type: 'student' as const },
+      loans: [
+        { memberId: 'm1', bookId: 'b2', borrowedAt: new Date('2025-06-01T10:00:00Z'), dueAt: new Date('2025-06-20T10:00:00Z'), returnedAt: null },
+        { memberId: 'm1', bookId: 'b3', borrowedAt: new Date('2025-06-01T10:00:00Z'), dueAt: new Date('2025-06-20T10:00:00Z'), returnedAt: null },
+        { memberId: 'm1', bookId: 'b4', borrowedAt: new Date('2025-06-01T10:00:00Z'), dueAt: new Date('2025-06-20T10:00:00Z'), returnedAt: null },
+      ],
+    },
+    {
+      tipo: 'professor',
+      member: { type: 'professor' as const },
+      loans: [
+        { memberId: 'm1', bookId: 'b2', borrowedAt: new Date('2025-06-01T10:00:00Z'), dueAt: new Date('2025-06-20T10:00:00Z'), returnedAt: null },
+        { memberId: 'm1', bookId: 'b3', borrowedAt: new Date('2025-06-01T10:00:00Z'), dueAt: new Date('2025-06-20T10:00:00Z'), returnedAt: null },
+        { memberId: 'm1', bookId: 'b4', borrowedAt: new Date('2025-06-01T10:00:00Z'), dueAt: new Date('2025-06-20T10:00:00Z'), returnedAt: null },
+        { memberId: 'm1', bookId: 'b5', borrowedAt: new Date('2025-06-01T10:00:00Z'), dueAt: new Date('2025-06-20T10:00:00Z'), returnedAt: null },
+        { memberId: 'm1', bookId: 'b6', borrowedAt: new Date('2025-06-01T10:00:00Z'), dueAt: new Date('2025-06-20T10:00:00Z'), returnedAt: null },
+      ],
+    },
+  ])('bloqueia empréstimo quando $tipo atinge o limite de empréstimos', ({ member, loans }) => {
     // Arrange
-    const activeLoans: Loan[] = [
-      { memberId: 'm1', bookId: 'b2', borrowedAt: today, dueAt: new Date('2025-06-20T10:00:00Z'), returnedAt: null },
-      { memberId: 'm1', bookId: 'b3', borrowedAt: today, dueAt: new Date('2025-06-20T10:00:00Z'), returnedAt: null },
-      { memberId: 'm1', bookId: 'b4', borrowedAt: today, dueAt: new Date('2025-06-20T10:00:00Z'), returnedAt: null },
-    ];
-    repo.findMemberById.mockReturnValue(makeMember());
+    repo.findMemberById.mockReturnValue(makeMember(member));
     repo.findBookById.mockReturnValue(makeBook());
-    repo.findActiveLoansByMemberId.mockReturnValue(activeLoans);
+    repo.findActiveLoansByMemberId.mockReturnValue(loans);
 
     // Act
     const result = service.borrowBook('m1', 'b1', today);
