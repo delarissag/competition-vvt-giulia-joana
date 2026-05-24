@@ -61,8 +61,6 @@ describe('borrowBook', () => {
     expect(result.reason).toBe('BOOK_NOT_AVAILABLE');
   });
 
-
-
   it('empréstimo falha quando membro não existe', () => {
     // Arrange
     repo.findMemberById.mockReturnValue(null);
