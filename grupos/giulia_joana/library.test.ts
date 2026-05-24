@@ -45,16 +45,26 @@ describe('borrowBook', () => {
     expect(result.loan?.bookId).toBe('b1');
   });
 
-  it.each([
-    { status: 'borrowed' as BookStatus, descricao: 'emprestado' },
-    { status: 'maintenance' as BookStatus, descricao: 'em manutenção' },
-  ])('bloqueia empréstimo quando livro está $descricao', ({ status }) => {
+  it('bloqueia empréstimo quando livro está em manutenção', () => {
     // Arrange
-    repo.findMemberById.mockReturnValue(makeMember());
-    repo.findBookById.mockReturnValue(makeBook({ status }));
+    repo.findMemberById.mockReturnValue(makeMember({ id: 'm2', name: 'Bob' }));
+    repo.findBookById.mockReturnValue(makeBook({ status: 'maintenance' }));
 
     // Act
-    const result = service.borrowBook('m1', 'b1', today);
+    const result = service.borrowBook('m2', 'b1', today);
+
+    // Assert
+    expect(result.success).toBe(false);
+    expect(result.reason).toBe('BOOK_NOT_AVAILABLE');
+  });
+
+  it('bloqueia empréstimo quando livro está emprestado', () => {
+    // Arrange
+    repo.findMemberById.mockReturnValue(makeMember({ id: 'm2', name: 'Bob' }));
+    repo.findBookById.mockReturnValue(makeBook({ status: 'borrowed' }));
+
+    // Act
+    const result = service.borrowBook('m2', 'b1', today);
 
     // Assert
     expect(result.success).toBe(false);
@@ -179,8 +189,32 @@ describe('borrowBook', () => {
 });
 
 describe('returnBook', () => {
+  it('calcula multa de 2 dias atrasado para student', () => {
+    // Arrange
+    const loan = {
+      memberId: 'm1',
+      bookId: 'b1',
+      borrowedAt: new Date('2025-06-01T10:00:00Z'),
+      dueAt: new Date('2025-06-08T10:00:00Z'),
+      returnedAt: null,
+    };
+    repo.findActiveLoanByBookId.mockReturnValue(loan);
+    repo.findBookById.mockReturnValue(makeBook());
+
+    // Act
+    const result = service.returnBook(
+      'm1',
+      'b1',
+      new Date('2025-06-10T10:00:00Z'),
+    );
+
+    // Assert
+    expect(result.success).toBe(true);
+    expect(result.daysLate).toBe(2);
+    expect(result.feeInCents).toBe(400);
+  });
+
   it.each([
-    { daysLate: 2, dueAt: '2025-06-08T10:00:00Z', returnedAt: '2025-06-10T10:00:00Z', feeInCents: 400 },
     { daysLate: 3, dueAt: '2025-06-07T10:00:00Z', returnedAt: '2025-06-10T10:00:00Z', feeInCents: 600 },
     { daysLate: 4, dueAt: '2025-06-06T10:00:00Z', returnedAt: '2025-06-10T10:00:00Z', feeInCents: 1100 },
     { daysLate: 5, dueAt: '2025-06-08T10:00:00Z', returnedAt: '2025-06-13T10:00:00Z', feeInCents: 1600 },
@@ -206,7 +240,6 @@ describe('returnBook', () => {
 
   it('devolução falha quando livro não está emprestado', () => {
     // Arrange
-    repo.findActiveLoanByBookId.mockReturnValue(null);
 
     // Act
     const result = service.returnBook('m1', 'b1', today);
@@ -278,7 +311,7 @@ describe('returnBook', () => {
 });
 
 describe('getMemberStatus', () => {
-  it('consulta de status lança erro quando membro não existe', () => {
+  it('getMemberStatus para membro inexistente', () => {
     // Arrange
     repo.findMemberById.mockReturnValue(null);
 
