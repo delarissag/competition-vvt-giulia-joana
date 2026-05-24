@@ -240,7 +240,7 @@ describe('returnBook', () => {
 
   it('devolução falha quando livro não está emprestado', () => {
     // Arrange
-
+    repo.findActiveLoanByBookId.mockReturnValue(null);
     // Act
     const result = service.returnBook('m1', 'b1', today);
 
